@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Voting System</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9fafa;
+      color: #333;
+      padding: 30px;
+      max-width: 600px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    button {
+      padding: 8px 16px;
+      margin-top: 8px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    input {
+      padding: 6px;
+      width: 80%;
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .option {
+      margin: 10px 0;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mini Voting DApp</h1>
+
+  <div>
+    <h3>Available Options</h3>
+    <div id="optionsList"></div>
+  </div>
+
+  <div>
+    <h3>Vote</h3>
+    <input id="optionIdVote" type="number" placeholder="Option ID">
+    <button onclick="vote()">Vote</button>
+  </div>
+
+  <div>
+    <h3>Add Option (Owner only)</h3>
+    <input id="optionName" type="text" placeholder="Option name">
+    <button onclick="addOption()">Add Option</button>
+  </div>
+
+  <div>
+    <h3>End Voting (Owner only)</h3>
+    <button onclick="endVoting()">End Voting</button>
+  </div>
+
+  <script>
+    let web3;
+    let contract;
+    const contractAddress = "0x0498B7c793D7432Cd9dB27fb02fc9cfdBAfA1Fd3";
+    const contractABI = [
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_name",
+				"type": "string"
+			}
+		],
+		"name": "addOption",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "endVoting",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_optionId",
+				"type": "uint256"
+			}
+		],
+		"name": "vote",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getTotalOptions",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_optionId",
+				"type": "uint256"
+			}
+		],
+		"name": "getVotes",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "optionName",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "votes",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "hasVoted",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "options",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "name",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "voteCount",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "votingOpen",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]; // Replace with actual ABI from Remix
+
+    async function load() {
+      if (window.ethereum) {
+        web3 = new Web3(window.ethereum);
+        await ethereum.request({ method: 'eth_requestAccounts' });
+        contract = new web3.eth.Contract(contractABI, contractAddress);
+        loadOptions();
+      } else {
+        alert("Please install MetaMask!");
+      }
+    }
+
+    async function loadOptions() {
+      const total = await contract.methods.getTotalOptions().call();
+      const optionsDiv = document.getElementById("optionsList");
+      optionsDiv.innerHTML = "";
+
+      for (let i = 0; i < total; i++) {
+        const [name, votes] = await contract.methods.getVotes(i).call();
+        optionsDiv.innerHTML += `
+          <div class="option">
+            <strong>ID ${i}:</strong> ${name} — ${votes} votes
+          </div>`;
+      }
+    }
+
+    async function vote() {
+      const id = document.getElementById("optionIdVote").value;
+      const accounts = await web3.eth.getAccounts();
+      await contract.methods.vote(id).send({ from: accounts[0] });
+      alert("Vote cast!");
+      loadOptions();
+    }
+
+    async function addOption() {
+      const name = document.getElementById("optionName").value;
+      const accounts = await web3.eth.getAccounts();
+      await contract.methods.addOption(name).send({ from: accounts[0] });
+      alert("Option added!");
+      loadOptions();
+    }
+
+    async function endVoting() {
+      const accounts = await web3.eth.getAccounts();
+      await contract.methods.endVoting().send({ from: accounts[0] });
+      alert("Voting ended.");
+    }
+
+    load();
+  </script>
+</body>
+</html>
